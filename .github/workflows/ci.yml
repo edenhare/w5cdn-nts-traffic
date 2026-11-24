@@ -1,0 +1,257 @@
+name: CI & Standalone Releases
+
+on:
+  push:
+    branches: ["main", "master"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["main", "master"]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "Optional vX.Y.Z tag to build and publish a GitHub Release for"
+        required: false
+        type: string
+        default: ""
+      skip_checks:
+        description: "Skip redundant test/security re-runs when called after a verified Release PR merge"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Electron & Vitest (${{ matrix.os }})
+    if: inputs.skip_checks != true
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || '' }}
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify version consistency, TypeScript, and Vitest coverage
+        run: |
+          node scripts/bump-version.mjs --check
+          npm run typecheck
+          npm run test:cov
+
+      - name: Live Electron GUI smoke test (Windows)
+        if: runner.os == 'Windows'
+        run: npm run smoke
+
+  security:
+    name: Security & Dependency Audit
+    if: inputs.skip_checks != true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || '' }}
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check JS syntax & production dependency CVE audit
+        run: |
+          node --check src/renderer/app.js
+          npm audit --omit=dev --audit-level=high
+
+  all-checks-passed:
+    name: Required PR Merge Gate
+    needs: [test, security]
+    if: always() && inputs.skip_checks != true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Post PR check summary
+        if: always() && github.event_name == 'pull_request' && inputs.release_tag == ''
+        continue-on-error: true
+        uses: actions/github-script@v9
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+        with:
+          script: |
+            const icon = (s) => (s === 'success' ? '✅ Passed' : s === 'failure' ? '❌ Failed' : `⏭️ ${s || 'Skipped'}`);
+            const testRes = process.env.TEST_RESULT;
+            const secRes = process.env.SECURITY_RESULT;
+            const allPassed = testRes === 'success' && secRes === 'success';
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const shortSha = (context.payload.pull_request.head?.sha || context.sha).slice(0, 7);
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const marker = '<!-- w5cdn-nts-ci-summary -->';
+            const body = [
+              marker,
+              allPassed
+                ? '### ✅ W5CDN NTS Traffic Manager — CI & Security Gate Passed'
+                : '### ❌ W5CDN NTS Traffic Manager — CI & Security Gate Failed',
+              '',
+              '| Check | Status | Details |',
+              '| :--- | :--- | :--- |',
+              `| **TypeScript, Vitest & Coverage** | ${icon(testRes)} | Ubuntu & Windows × Node 22 + Windows Electron smoke |`,
+              `| **Security & CVE Audit** | ${icon(secRes)} | Production npm audit (High/Critical) & JS syntax verification |`,
+              '| **CodeQL** | 🔍 Separate workflow | JavaScript/TypeScript SAST (see Checks tab) |',
+              '',
+              `_Commit \`${shortSha}\` • [View full CI run logs](${runUrl})_`,
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+            }
+
+      - name: Verify all test and security jobs succeeded
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "Electron & Vitest matrix failed (${{ needs.test.result }})."
+            exit 1
+          fi
+          if [ "${{ needs.security.result }}" != "success" ]; then
+            echo "Security & dependency audit failed (${{ needs.security.result }})."
+            exit 1
+          fi
+          echo "All Electron/TypeScript tests, coverage, and security gates passed."
+
+  build-standalone:
+    name: Build Electron Installer (${{ matrix.os }})
+    needs: [all-checks-passed]
+    if: >-
+      always() &&
+      (needs.all-checks-passed.result == 'success' ||
+       (inputs.skip_checks == true && inputs.release_tag != '')) &&
+      (github.event_name != 'pull_request' || inputs.release_tag != '')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || '' }}
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows NSIS installer & smoke-test packaged app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          npm run package:win
+          $exe = "release\win-unpacked\W5CDN NTS Traffic Manager.exe"
+          if (-not (Test-Path $exe)) { throw "Packaged executable missing: $exe" }
+          node scripts/run-smoke.mjs $exe
+
+      - name: Build Linux AppImage
+        if: runner.os == 'Linux'
+        run: npm run package:linux
+
+      - name: Upload standalone Electron installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: standalone-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.AppImage
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-standalone]
+    if: >-
+      always() &&
+      needs.build-standalone.result == 'success' &&
+      (startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v'))
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+
+    steps:
+      - name: Checkout full Git history for changelog generation
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Download built installers
+        uses: actions/download-artifact@v8
+        with:
+          path: dist-artifacts
+          merge-multiple: true
+
+      - name: Generate changelog and SHA256SUMS.txt
+        run: |
+          node scripts/generate-changelog.mjs \
+            --version "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --to "${RELEASE_TAG}" \
+            --output dist-artifacts/CHANGELOG.md
+          (cd dist-artifacts && sha256sum *.exe *.AppImage > SHA256SUMS.txt)
+          cat dist-artifacts/SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: W5CDN NTS Traffic Manager ${{ env.RELEASE_TAG }}
+          body_path: dist-artifacts/CHANGELOG.md
+          files: |
+            dist-artifacts/*.exe
+            dist-artifacts/*.AppImage
+            dist-artifacts/CHANGELOG.md
+            dist-artifacts/SHA256SUMS.txt
+          generate_release_notes: false

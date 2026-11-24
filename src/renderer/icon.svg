@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a3c66"/>
+      <stop offset="100%" stop-color="#0a1830"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="232" height="232" rx="48" fill="url(#bg)" stroke="#38bdf8" stroke-width="7"/>
+  <!-- RF Signal Waves -->
+  <g fill="none" stroke="#38bdf8" stroke-width="11" stroke-linecap="round">
+    <path d="M98 54 A38 38 0 0 0 98 104" opacity="0.95"/>
+    <path d="M158 54 A38 38 0 0 1 158 104" opacity="0.95"/>
+    <path d="M77 36 A64 64 0 0 0 77 122" opacity="0.85"/>
+    <path d="M179 36 A64 64 0 0 1 179 122" opacity="0.85"/>
+    <path d="M56 18 A90 90 0 0 0 56 140" opacity="0.68"/>
+    <path d="M200 18 A90 90 0 0 1 200 140" opacity="0.68"/>
+  </g>
+  <!-- Radio Tower -->
+  <g fill="none" stroke="#eef7ff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="128" y1="86" x2="82" y2="208"/>
+    <line x1="128" y1="86" x2="174" y2="208"/>
+    <line x1="108" y1="138" x2="148" y2="138" stroke-width="10"/>
+    <line x1="94" y1="176" x2="162" y2="176" stroke-width="10"/>
+  </g>
+  <line x1="128" y1="80" x2="128" y2="200" stroke="#8cd9ff" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+  <!-- Emerald ON-AIR Beacon -->
+  <circle cx="128" cy="79" r="16" fill="#10b981" opacity="0.35"/>
+  <circle cx="128" cy="79" r="11" fill="#10b981"/>
+  <circle cx="128" cy="79" r="5" fill="#e6fff5"/>
+</svg>

@@ -1,0 +1,25 @@
+# Local runtime data & credentials (NEVER commit personal traffic or passwords)
+.env
+config.txt
+*.db
+*.db-wal
+*.db-shm
+*.bak
+radiograms/
+outbox/
+
+# Test & coverage artifacts
+coverage/
+coverage.json
+
+# Build & packaging artifacts
+build/
+dist/
+release/
+node_modules/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

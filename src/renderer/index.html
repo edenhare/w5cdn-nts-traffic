@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="shack-dark">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>W5CDN NTS Traffic Manager</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-title">W5CDN NTS Traffic Manager</span>
+      <span class="pill pill-mono" id="appVersionPill">v0.1.0</span>
+      <span class="pill pill-mono call-text" id="opCallBadge">W5CDN</span>
+      <span class="pill pill-mono" id="utcClock">--:--:--Z</span>
+    </div>
+    <div class="topbar-actions">
+      <button type="button" class="btn btn-primary" id="btnNewRg" title="New ARRL Radiogram (Ctrl+N)">+ New Radiogram</button>
+      <button type="button" class="btn btn-amber" id="btnNewBook" title="Create ARRL Book Message (1 text -> N addressees)">+ Book Message</button>
+      <button type="button" class="btn" id="btnOpenFolder" title="Open synced radiograms folder">Folder</button>
+      <button type="button" class="btn" id="btnSarModal" title="Monthly SAR / BPL Tally">Monthly SAR</button>
+      <button type="button" class="btn" id="btnSettings">Preferences</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Traffic Queues</div>
+        <button type="button" class="queue-btn active" data-queue="needs_action">
+          <span>Needs Action</span>
+          <span class="count-pill" id="cntNeedsAction">0</span>
+        </button>
+        <button type="button" class="queue-btn" data-queue="ready_relay">
+          <span>Ready for Relay</span>
+          <span class="count-pill" id="cntReadyRelay">0</span>
+        </button>
+        <button type="button" class="queue-btn" data-queue="followup">
+          <span>Follow-Up (HXC/D/B)</span>
+          <span class="count-pill count-warn" id="cntFollowup">0</span>
+        </button>
+        <button type="button" class="queue-btn" data-queue="archive">
+          <span>Archive (Done)</span>
+          <span class="count-pill" id="cntArchive">0</span>
+        </button>
+        <button type="button" class="queue-btn" data-queue="all">
+          <span>All Messages</span>
+          <span class="count-pill" id="cntAll">0</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Book Messages</div>
+        <div id="booksList" class="books-list">
+          <div class="muted-small">No book messages yet.</div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="queue-pane">
+      <div class="toolbar">
+        <input type="search" id="searchInput" class="input" placeholder="Search NR, callsign, addressee, city, HX, text... (Ctrl+K)" />
+        <button type="button" class="btn btn-sm" id="btnPrintSelected2Up" title="Print checked or current queue 2-up">Print 2-Up</button>
+      </div>
+      <div class="table-wrap">
+        <table class="traffic-table">
+          <thead>
+            <tr>
+              <th style="width:30px;"><input type="checkbox" id="chkSelectAll" aria-label="Select all" /></th>
+              <th style="width:62px;">NR</th>
+              <th style="width:70px;">PREC</th>
+              <th style="width:74px;">HX</th>
+              <th style="width:96px;">ORIGIN</th>
+              <th style="width:64px;">CK</th>
+              <th>TO / DESTINATION</th>
+              <th style="width:98px;">STATUS</th>
+              <th style="width:110px;">ALERTS</th>
+            </tr>
+          </thead>
+          <tbody id="rgTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="detail-pane" id="detailPane">
+      <div class="empty-detail" id="emptyDetail">
+        <p>Select a radiogram from the queue or press <strong>+ New Radiogram</strong> (<code>Ctrl+N</code>) to begin.</p>
+      </div>
+      <div id="detailContent" class="hidden">
+        <div class="detail-header">
+          <div>
+            <h2 id="detailTitle">NR —</h2>
+            <div class="detail-sub" id="detailMeta"></div>
+          </div>
+          <div class="detail-actions">
+            <button type="button" class="btn btn-sm btn-primary" id="btnEditRg">Edit</button>
+            <button type="button" class="btn btn-sm" id="btnCopyText">Copy Text</button>
+            <button type="button" class="btn btn-sm" id="btnPrint1Up">Print 1-Up</button>
+            <button type="button" class="btn btn-sm" id="btnPrint2Up">Print 2-Up</button>
+            <button type="button" class="btn btn-sm btn-success hidden" id="btnPushPacket">Push Packet</button>
+            <button type="button" class="btn btn-sm btn-primary hidden" id="btnPushWinlink">Push Winlink</button>
+            <button type="button" class="btn btn-sm btn-danger" id="btnDeleteRg">Delete</button>
+          </div>
+        </div>
+
+        <div class="quick-status-bar">
+          <span class="muted-small">Quick Status:</span>
+          <button type="button" class="btn btn-xs" data-quick-status="ASSIGNED">Assigned</button>
+          <button type="button" class="btn btn-xs btn-success" data-quick-status="RELAYED">Mark Relayed</button>
+          <button type="button" class="btn btn-xs btn-success" data-quick-status="DELIVERED">Mark Delivered</button>
+          <button type="button" class="btn btn-xs" data-quick-status="CANCELLED">Cancel</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-xs btn-amber" id="btnSvcDelivered" title="Create SVC reply reporting delivery (HXC)">+ SVC Delivered</button>
+          <button type="button" class="btn btn-xs btn-amber" id="btnSvcRelayed" title="Create SVC reply reporting relay (HXD)">+ SVC Relayed</button>
+          <button type="button" class="btn btn-xs" id="btnSvcUndeliv" title="Create ARL 67 Undeliverable SVC">+ SVC Undeliv</button>
+        </div>
+
+        <div id="detailAlertBanner" class="alert-banner hidden"></div>
+
+        <label class="field-label">Official ARRL Radiogram Text</label>
+        <pre class="rg-preview" id="detailPreview"></pre>
+
+        <label class="field-label">Handling Audit Log</label>
+        <div id="detailLogs" class="handling-logs"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Radiogram Composer / Editor -->
+  <div class="modal-backdrop hidden" id="rgModal">
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="rgModalTitle">
+      <div class="modal-header">
+        <h2 id="rgModalTitle">New ARRL Radiogram</h2>
+        <button type="button" class="btn btn-ghost btn-sm" data-close="rgModal">✕</button>
+      </div>
+      <form id="rgForm">
+        <div class="modal-body">
+          <input type="hidden" id="rgId" />
+          <div class="section-cap">1. Preamble</div>
+          <div class="grid-4">
+            <div class="field">
+              <label for="rgNumber">Number (NR)</label>
+              <input id="rgNumber" class="input mono" placeholder="Auto" />
+            </div>
+            <div class="field">
+              <label for="rgPrecedence">Precedence</label>
+              <select id="rgPrecedence" class="input">
+                <option value="R">R — Routine</option>
+                <option value="W">W — Health &amp; Welfare</option>
+                <option value="P">P — Priority</option>
+                <option value="EMERGENCY">EMERGENCY</option>
+                <option value="TEST R">TEST R</option>
+                <option value="TEST P">TEST P</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="rgHx">HX (Handling)</label>
+              <input id="rgHx" class="input mono" placeholder="e.g. HXC HXG" />
+            </div>
+            <div class="field">
+              <label for="rgDirection">Direction</label>
+              <select id="rgDirection" class="input">
+                <option value="INBOUND">Inbound (Received)</option>
+                <option value="ORIGINATED">Originated (Local)</option>
+                <option value="RELAY">Relay</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="chip-row" id="hxChips">
+            <button type="button" class="chip" data-hx="HXA" title="Collect landline delivery authorized">+ HXA</button>
+            <button type="button" class="chip" data-hx="HXB24" title="Cancel if undelivered in 24 hrs">+ HXB24</button>
+            <button type="button" class="chip" data-hx="HXC" title="Report date &amp; time of delivery to origin">+ HXC</button>
+            <button type="button" class="chip" data-hx="HXD" title="Report station &amp; time handled to origin">+ HXD</button>
+            <button type="button" class="chip" data-hx="HXE" title="Delivering station get reply">+ HXE</button>
+            <button type="button" class="chip" data-hx="HXG" title="Delivery by mail/toll not required">+ HXG</button>
+          </div>
+
+          <div class="grid-4">
+            <div class="field">
+              <label for="rgOrigin">Station of Origin</label>
+              <input id="rgOrigin" class="input mono" />
+            </div>
+            <div class="field">
+              <label for="rgPlace">Place of Origin</label>
+              <input id="rgPlace" class="input" placeholder="TYLER, TX" />
+            </div>
+            <div class="field">
+              <label for="rgTimeFiled">Time Filed (UTC)</label>
+              <input id="rgTimeFiled" class="input mono" placeholder="1620Z" />
+            </div>
+            <div class="field">
+              <label for="rgDateFiled">Date Filed</label>
+              <input id="rgDateFiled" class="input mono" placeholder="NOV 24" />
+            </div>
+          </div>
+
+          <div class="section-cap">2. Addressee (To)</div>
+          <div class="grid-3">
+            <div class="field">
+              <label for="rgToName">Recipient Name</label>
+              <input id="rgToName" class="input" />
+            </div>
+            <div class="field">
+              <label for="rgToCall">
+                <span>Callsign (Optional)</span>
+                <button type="button" class="btn btn-xs" id="btnLookupToCall" title="Lookup via QRZ / Callook.info">Lookup</button>
+              </label>
+              <input id="rgToCall" class="input mono" />
+            </div>
+            <div class="field">
+              <label for="rgToPhone">Telephone</label>
+              <input id="rgToPhone" class="input mono" />
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="field">
+              <label for="rgToAddress">Street Address</label>
+              <input id="rgToAddress" class="input" />
+            </div>
+            <div class="field">
+              <label for="rgToCity">City, State ZIP</label>
+              <input id="rgToCity" class="input" />
+            </div>
+            <div class="field">
+              <label for="rgToEmail">Email (Optional)</label>
+              <input id="rgToEmail" class="input" />
+            </div>
+          </div>
+
+          <div class="body-head">
+            <div class="section-cap">3. Message Text (BT ... BT) — Check: <span class="pill pill-mono" id="rgCheckBadge">0</span></div>
+            <div class="body-tools">
+              <button type="button" class="btn btn-xs" id="btnInsertX" title="Insert X period separator (Ctrl+.)">+ X (Period)</button>
+              <select id="arlPicker" class="input input-sm" style="width:260px;">
+                <option value="">Insert ARL Numbered Text...</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <textarea id="rgMessageText" class="input mono" rows="4" spellcheck="true" placeholder="Type message text (25 words or fewer recommended)..."></textarea>
+            <div id="rgWordAdvisory" class="warn-text hidden">ARRL NTS recommends keeping radiogram text to 25 word groups or fewer.</div>
+          </div>
+
+          <div class="grid-3">
+            <div class="field">
+              <label for="rgSignature">Signature</label>
+              <input id="rgSignature" class="input" />
+            </div>
+            <div class="field">
+              <label for="rgNetName">Net Name (Optional)</label>
+              <input id="rgNetName" class="input" placeholder="e.g. TX TRAFFIC NET" />
+            </div>
+            <div class="field">
+              <label for="rgStatus">Status</label>
+              <select id="rgStatus" class="input">
+                <option value="LISTED">Listed (Inbox)</option>
+                <option value="ASSIGNED">Assigned</option>
+                <option value="RELAYED">Relayed</option>
+                <option value="DELIVERED">Delivered</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section-cap">4. Handling &amp; Relay Log</div>
+          <div class="grid-4">
+            <div class="field">
+              <label for="rgRcvdFrom">Received From</label>
+              <input id="rgRcvdFrom" class="input mono" />
+            </div>
+            <div class="field">
+              <label for="rgRcvdAt">Rcvd UTC</label>
+              <input id="rgRcvdAt" class="input mono" />
+            </div>
+            <div class="field">
+              <label for="rgSentTo">Sent / Relayed To</label>
+              <input id="rgSentTo" class="input mono" />
+            </div>
+            <div class="field">
+              <label for="rgSentAt">Sent UTC</label>
+              <input id="rgSentAt" class="input mono" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" data-close="rgModal">Cancel</button>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-amber" id="btnSaveAddAnother">Save &amp; Add Another</button>
+            <button type="submit" class="btn btn-primary">Save Radiogram</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Book Message Composer -->
+  <div class="modal-backdrop hidden" id="bookModal">
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="bookModalTitle">
+      <div class="modal-header">
+        <h2 id="bookModalTitle">New ARRL Book Message (1 Text → Multiple Addressees)</h2>
+        <button type="button" class="btn btn-ghost btn-sm" data-close="bookModal">✕</button>
+      </div>
+      <form id="bookForm">
+        <div class="modal-body">
+          <div class="grid-4">
+            <div class="field">
+              <label for="bookTitle">Book Title</label>
+              <input id="bookTitle" class="input" required placeholder="e.g. SET DRILL BULLETIN" />
+            </div>
+            <div class="field">
+              <label for="bookPrecedence">Precedence</label>
+              <select id="bookPrecedence" class="input">
+                <option value="R">R — Routine</option>
+                <option value="W">W — Health &amp; Welfare</option>
+                <option value="P">P — Priority</option>
+                <option value="TEST R">TEST R</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="bookHx">HX</label>
+              <input id="bookHx" class="input mono" placeholder="e.g. HXG" />
+            </div>
+            <div class="field">
+              <label for="bookStartNum">Starting NR (Optional)</label>
+              <input id="bookStartNum" class="input mono" placeholder="Auto" />
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="field">
+              <label for="bookOrigin">Station of Origin</label>
+              <input id="bookOrigin" class="input mono" />
+            </div>
+            <div class="field">
+              <label for="bookPlace">Place of Origin</label>
+              <input id="bookPlace" class="input" />
+            </div>
+            <div class="field">
+              <label for="bookSignature">Signature</label>
+              <input id="bookSignature" class="input" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="bookMessageText">Shared Message Text</label>
+            <textarea id="bookMessageText" class="input mono" rows="3" spellcheck="true" required placeholder="Shared body sent to every addressee in this book..."></textarea>
+          </div>
+          <div class="field">
+            <label for="bookAddressees">Addressees (one per line: <code>Name | Callsign | Address | City State ZIP | Phone</code>)</label>
+            <textarea id="bookAddressees" class="input mono" rows="6" required placeholder="EOC TYLER | W5CDN | 100 E ELM | TYLER TX 75702 | 903-555-0100&#10;RED CROSS EAST TX | K5RC | 320 E RIEK | TYLER TX 75701 | 903-555-0199"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" data-close="bookModal">Cancel</button>
+          <button type="submit" class="btn btn-amber">Create Book Messages</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Push Radiogram via Packet BBS / Winlink -->
+  <div class="modal-backdrop hidden" id="digitalPushModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="digitalPushTitle">
+      <div class="modal-header">
+        <h2 id="digitalPushTitle">Push Radiogram</h2>
+        <button type="button" class="btn btn-ghost btn-sm" data-close="digitalPushModal">✕</button>
+      </div>
+      <form id="digitalPushForm">
+        <div class="modal-body">
+          <input type="hidden" id="pushRgId" />
+          <input type="hidden" id="pushMode" />
+          <div class="field" id="pushToPacketField">
+            <label for="pushToPacket">Receiving Station ID / Packet BBS Address</label>
+            <input id="pushToPacket" class="input mono" placeholder="e.g. TXNTS or W5ABC@W5CDN.#ETX.TX.USA.NOAM" />
+            <span class="muted-small">Use the receiving amateur station ID or BBS hierarchical address (not recipient email).</span>
+          </div>
+          <div class="field hidden" id="pushToWinlinkField">
+            <label for="pushToWinlink">Winlink Destination Address</label>
+            <input id="pushToWinlink" class="input mono" placeholder="e.g. W5STM@winlink.org or recipient@example.com" />
+          </div>
+          <div class="grid-2">
+            <div class="field" id="pushBbsTypeField">
+              <label for="pushBbsType">BBS Message Type</label>
+              <select id="pushBbsType" class="input">
+                <option value="SP">SP (Private)</option>
+                <option value="ST">ST (NTS Traffic — Type T)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="pushSubject">Subject</label>
+              <input id="pushSubject" class="input mono" />
+            </div>
+          </div>
+          <div id="pushResultBanner" class="status-banner hidden"></div>
+          <pre id="pushTranscript" class="rg-preview hidden" style="max-height:140px; overflow:auto;"></pre>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" data-close="digitalPushModal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnConfirmDigitalPush">Transmit / Stage</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Monthly SAR / BPL -->
+  <div class="modal-backdrop hidden" id="sarModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sarTitle">
+      <div class="modal-header">
+        <h2 id="sarTitle">Monthly Station Activity Report (SAR)</h2>
+        <button type="button" class="btn btn-ghost btn-sm" data-close="sarModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="sarMonth">Month (YYYY-MM)</label>
+          <input id="sarMonth" type="month" class="input mono" />
+        </div>
+        <div class="sar-grid" id="sarGrid"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-close="sarModal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Preferences (Full Parity with W5CDN Net Logger) -->
+  <div class="modal-backdrop hidden" id="settingsModal">
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-header">
+        <h2 id="settingsTitle">Preferences</h2>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnCancelPrefsTop">✕</button>
+      </div>
+      <div class="tabs-bar" role="tablist">
+        <button type="button" role="tab" class="tab-btn active" data-pref-tab="appearance">Appearance &amp; Fonts</button>
+        <button type="button" role="tab" class="tab-btn" data-pref-tab="operator">Operator, QRZ &amp; Folders</button>
+        <button type="button" role="tab" class="tab-btn" data-pref-tab="digital">Packet / Winlink</button>
+      </div>
+      <form id="settingsForm">
+        <div class="modal-body">
+          <!-- Tab 1: Appearance & Fonts (All 9 Themes) -->
+          <div id="prefTabAppearance" style="display:flex; flex-direction:column; gap:12px;">
+            <div class="field">
+              <label>Light Background Themes</label>
+              <div class="theme-grid">
+                <button type="button" class="theme-card" data-theme-pick="daylight">
+                  <div class="theme-swatches">
+                    <span class="theme-swatch-dot" style="background:#e2e8f0;"></span>
+                    <span class="theme-swatch-dot" style="background:#d7e5f5;"></span>
+                    <span class="theme-swatch-dot" style="background:#dff2fe;"></span>
+                    <span class="theme-swatch-dot" style="background:#0284c7;"></span>
+                  </div>
+                  <span class="theme-card-title">Daylight</span>
+                  <span class="theme-card-desc">Cool slate &amp; steel blue</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-pick="paper-warm">
+                  <div class="theme-swatches">
+                    <span class="theme-swatch-dot" style="background:#f3ead8;"></span>
+                    <span class="theme-swatch-dot" style="background:#edd9b4;"></span>
+                    <span class="theme-swatch-dot" style="background:#fde6c0;"></span>
+                    <span class="theme-swatch-dot" style="background:#b45309;"></span>
+                  </div>
+                  <span class="theme-card-title">Warm Paper</span>
+                  <span class="theme-card-desc">Parchment cream &amp; terracotta</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-pick="eoc-light">
+                  <div class="theme-swatches">
+                    <span class="theme-swatch-dot" style="background:#dfeee5;"></span>
+                    <span class="theme-swatch-dot" style="background:#c4e4d3;"></span>
+                    <span class="theme-swatch-dot" style="background:#c6f0dc;"></span>
+                    <span class="theme-swatch-dot" style="background:#0f766e;"></span>
+                  </div>
+                  <span class="theme-card-title">EOC Mint</span>
+                  <span class="theme-card-desc">Sage green &amp; forest teal</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-pick="sky-breeze">
+                  <div class="theme-swatches">
+                    <span class="theme-swatch-dot" style="background:#dcebfa;"></span>
+                    <span class="theme-swatch-dot" style="background:#bfd9f9;"></span>
+                    <span class="theme-swatch-dot" style="background:#cde3ff;"></span>
+                    <span class="theme-swatch-dot" style="background:#1d4ed8;"></span>
+                  </div>
+                  <span class="theme-card-title">Arctic Blue</span>
+                  <span class="theme-card-desc">Sky blue &amp; cobalt cockpit</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-pick="high-contrast">
+                  <div class="theme-swatches">
+                    <span class="theme-swatch-dot" style="background:#ffffff;"></span>
+                    <span class="theme-swatch-dot" style="background:#fef08a;"></span>
+                    <span class="theme-swatch-dot" style="background:#0038b8;"></span>
+                    <span class="theme-swatch-dot" style="background:#000000;"></span>
+                  </div>
+                  <span class="theme-card-title">High Contrast</span>
+                  <span class="theme-card-desc">Sunlight white, yellow &amp; black</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Dark Background Themes</label>
+              <div class="theme-grid">
+                <button type="button" class="theme-card" data-theme-pick="shack-dark">
+                  <div class="theme-swatches">
+                    <span class="theme-swatch-dot" style="background:#060a11;"></span>
+                    <span class="theme-swatch-dot" style="background:#111c2e;"></span>
+                    <span class="theme-swatch-dot" style="background:#38bdf8;"></span>
+                    <span class="theme-swatch-dot" style="background:#10b981;"></span>
+                  </div>
+                  <span class="theme-card-title">Shack Dark</span>
+                  <span class="theme-card-desc">Obsidian &amp; cyan cockpit</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-pick="night-red">
+                  <div class="theme-swatches">
+                    <span class="theme-swatch-dot" style="background:#0a0405;"></span>
+                    <span class="theme-swatch-dot" style="background:#240e13;"></span>
+                    <span class="theme-swatch-dot" style="background:#ef4444;"></span>
+                    <span class="theme-swatch-dot" style="background:#fb923c;"></span>
+                  </div>
+                  <span class="theme-card-title">Night Ops Red</span>
+                  <span class="theme-card-desc">Low-glare night vision</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-pick="amber-crt">
+                  <div class="theme-swatches">
+                    <span class="theme-swatch-dot" style="background:#0f0c07;"></span>
+                    <span class="theme-swatch-dot" style="background:#2a2010;"></span>
+                    <span class="theme-swatch-dot" style="background:#f59e0b;"></span>
+                    <span class="theme-swatch-dot" style="background:#84cc16;"></span>
+                  </div>
+                  <span class="theme-card-title">Amber Terminal</span>
+                  <span class="theme-card-desc">Warm high-contrast CRT</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-pick="forest-eoc">
+                  <div class="theme-swatches">
+                    <span class="theme-swatch-dot" style="background:#08110c;"></span>
+                    <span class="theme-swatch-dot" style="background:#182f22;"></span>
+                    <span class="theme-swatch-dot" style="background:#22c55e;"></span>
+                    <span class="theme-swatch-dot" style="background:#2dd4bf;"></span>
+                  </div>
+                  <span class="theme-card-title">Tactical Green</span>
+                  <span class="theme-card-desc">EOC dark emerald</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="field">
+                <label for="setUiFont">Interface Font Family</label>
+                <select id="setUiFont" class="input">
+                  <option value="system">System UI (Segoe UI)</option>
+                  <option value="humanist">Humanist Sans (Calibri / Trebuchet)</option>
+                  <option value="geometric">Wide Legible (Verdana / Tahoma)</option>
+                  <option value="serif">Classic Serif (Georgia / Cambria)</option>
+                  <option value="mono">Monospace Everything</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="setMonoFont">Callsign &amp; Radiogram Monospace Font</label>
+                <select id="setMonoFont" class="input">
+                  <option value="cascadia">Cascadia Mono / Consolas</option>
+                  <option value="consolas">Consolas / Lucida Console</option>
+                  <option value="courier">Courier New</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="field">
+                <label for="setFontSize">
+                  <span>Base UI Font Size</span>
+                  <span class="mono" id="setFontSizeVal">14px</span>
+                </label>
+                <input type="range" id="setFontSize" min="11" max="22" step="1" value="14" />
+              </div>
+              <div class="field">
+                <label for="setCallsignSize">
+                  <span>Callsign Font Size</span>
+                  <span class="mono" id="setCallsignSizeVal">15px</span>
+                </label>
+                <input type="range" id="setCallsignSize" min="12" max="26" step="1" value="15" />
+              </div>
+            </div>
+
+            <div class="font-preview-box">
+              <div>
+                <div class="muted-small" style="text-transform:uppercase; font-weight:700;">Live Typography Preview</div>
+                <div style="margin-top:4px;">
+                  <span class="call-text">W5CDN</span>
+                  <span style="margin-left:10px;">NR 101 P HXC — EOC TYLER, TX</span>
+                </div>
+              </div>
+              <span class="badge badge-status-LISTED">LISTED • ARL 12</span>
+            </div>
+          </div>
+
+          <!-- Tab 2: Operator, QRZ & Folders -->
+          <div id="prefTabOperator" class="hidden" style="display:flex; flex-direction:column; gap:11px;">
+            <div class="grid-4">
+              <div class="field">
+                <label for="setOpCall">Operator Callsign</label>
+                <input id="setOpCall" class="input mono" placeholder="W5CDN" />
+              </div>
+              <div class="field">
+                <label for="setOpQth">Default Place of Origin</label>
+                <input id="setOpQth" class="input" placeholder="TYLER, TX" />
+              </div>
+              <div class="field">
+                <label for="setDefPrec">Default Precedence</label>
+                <select id="setDefPrec" class="input">
+                  <option value="R">R — Routine</option>
+                  <option value="W">W — Health &amp; Welfare</option>
+                  <option value="P">P — Priority</option>
+                  <option value="TEST R">TEST R</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="setNextNum">Next Auto NR</label>
+                <input id="setNextNum" type="number" min="1" class="input mono" />
+              </div>
+            </div>
+
+            <hr class="divider" />
+
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:700;">QRZ.com XML API Credentials</div>
+                <div class="muted-small">Stored locally in SQLite. Falls back to Callook.info if blank or offline.</div>
+              </div>
+              <button type="button" class="btn btn-sm" id="btnTestQrz">Test QRZ Login</button>
+            </div>
+
+            <div class="grid-2">
+              <div class="field">
+                <label for="setQrzUser">QRZ Username (Callsign)</label>
+                <input id="setQrzUser" class="input mono" autocomplete="off" placeholder="e.g. W5CDN" />
+              </div>
+              <div class="field">
+                <label for="setQrzPass">QRZ Password</label>
+                <div class="secret-row">
+                  <input type="password" id="setQrzPass" class="input mono" autocomplete="new-password" placeholder="Enter password to save/update" />
+                  <button type="button" class="btn btn-sm" data-toggle-secret="setQrzPass">Show</button>
+                </div>
+              </div>
+            </div>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.84em; color:var(--text-secondary);">
+              <input type="checkbox" id="setClearQrzPass" />
+              Clear saved QRZ password from local preferences
+            </label>
+            <div id="qrzTestBanner" class="status-banner hidden"></div>
+
+            <hr class="divider" />
+
+            <div class="field">
+              <label for="setRgDir">Synced Radiograms Folder (can share directly with W5CDN Net Logger)</label>
+              <div class="secret-row">
+                <input id="setRgDir" class="input mono" style="flex:1;" />
+                <button type="button" class="btn btn-sm" id="btnPickFolder">Browse...</button>
+              </div>
+            </div>
+
+            <div class="card-box" style="flex-direction:row; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:700;">Backup &amp; Restore Database (.db)</div>
+                <div class="muted-small">Exports or restores your complete local SQLite traffic log &amp; settings.</div>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button type="button" class="btn btn-primary btn-sm" id="btnExportBackup">Export Backup</button>
+                <button type="button" class="btn btn-amber btn-sm" id="btnRestoreBackup">Restore Backup</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Packet / Winlink BBS Delivery -->
+          <div id="prefTabDigital" class="hidden" style="display:flex; flex-direction:column; gap:11px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:700;">BBS / Mail Delivery (Packet &amp; Winlink)</div>
+                <div class="muted-small">Deliver ARRL Radiograms directly to LinBPQ/BPQ32 Telnet, Pat Winlink, or an Outbox folder.</div>
+              </div>
+              <button type="button" class="btn btn-sm" id="btnTestDigital">Test Connection</button>
+            </div>
+
+            <div id="digitalTestBanner" class="status-banner hidden"></div>
+            <pre id="digitalTestTranscript" class="rg-preview hidden" style="max-height:120px; overflow:auto;"></pre>
+
+            <div class="card-box" style="flex-direction:row; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+              <div style="display:flex; gap:18px; flex-wrap:wrap;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:700;">
+                  <input type="checkbox" id="setDigPacket" />
+                  Enable Packet BBS
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:700;">
+                  <input type="checkbox" id="setDigWinlink" />
+                  Enable Winlink
+                </label>
+              </div>
+              <span class="pill" id="setDigStatusPill">Disabled</span>
+            </div>
+
+            <div id="setDigConfigBody" class="hidden" style="display:flex; flex-direction:column; gap:10px;">
+              <div class="grid-2">
+                <div class="field">
+                  <label for="setDigMethod">Delivery Method</label>
+                  <select id="setDigMethod" class="input">
+                    <option value="bpq_telnet">LinBPQ / BPQ32 Mail (Telnet)</option>
+                    <option value="pat">Pat Winlink Web UI (Local or LAN)</option>
+                    <option value="outbox">Mail Import / Outbox Folder</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="setDigDefaultTo">Default Recipient (optional)</label>
+                  <input id="setDigDefaultTo" class="input mono" placeholder="e.g. TXNTS or W5STM@winlink.org" />
+                </div>
+              </div>
+
+              <div id="digPanelBpq" class="card-box">
+                <div class="grid-3">
+                  <div class="field">
+                    <label for="setBpqHost">BBS Host / IP *</label>
+                    <input id="setBpqHost" class="input mono" placeholder="e.g. 192.168.1.50" />
+                  </div>
+                  <div class="field">
+                    <label for="setBpqPort">Telnet Port *</label>
+                    <input id="setBpqPort" type="number" min="1" max="65535" class="input mono" placeholder="8010" />
+                  </div>
+                  <div class="field">
+                    <label for="setBpqCmd">BBS Command</label>
+                    <input id="setBpqCmd" class="input mono" placeholder="BBS (blank if auto-BBS)" />
+                  </div>
+                </div>
+                <div class="grid-2">
+                  <div class="field">
+                    <label for="setBpqUser">Telnet Username (case-sensitive) *</label>
+                    <input id="setBpqUser" class="input mono" autocomplete="off" placeholder="Exact case from bpq32.cfg" />
+                  </div>
+                  <div class="field">
+                    <label for="setBpqPass">Telnet Password</label>
+                    <div class="secret-row">
+                      <input type="password" id="setBpqPass" class="input mono" autocomplete="new-password" placeholder="Enter BBS Telnet password" />
+                      <button type="button" class="btn btn-sm" data-toggle-secret="setBpqPass">Show</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="grid-3">
+                  <div class="field">
+                    <label for="setBpqNtsType">NTS BBS Type</label>
+                    <select id="setBpqNtsType" class="input">
+                      <option value="SP">SP (Private)</option>
+                      <option value="ST">ST (NTS Traffic — Type T)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="setBpqWlPrefix">Winlink Address Prefix</label>
+                    <input id="setBpqWlPrefix" class="input mono" placeholder="RMS:" />
+                  </div>
+                  <div class="field">
+                    <label for="setBpqWebmail">LinBPQ WebMail URL</label>
+                    <input id="setBpqWebmail" class="input mono" placeholder="http://192.168.1.50:8080/WebMail" />
+                  </div>
+                </div>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.84em; color:var(--text-secondary);">
+                  <input type="checkbox" id="setClearBpqPass" />
+                  Clear saved BBS Telnet password
+                </label>
+              </div>
+
+              <div id="digPanelPat" class="card-box hidden">
+                <div class="field">
+                  <label for="setPatUrl">Pat Web UI URL *</label>
+                  <input id="setPatUrl" class="input mono" placeholder="http://127.0.0.1:8080" />
+                </div>
+              </div>
+
+              <div id="digPanelOutbox" class="card-box hidden">
+                <div class="field">
+                  <label for="setOutboxDir">Outbox Drop Folder</label>
+                  <div class="secret-row">
+                    <input id="setOutboxDir" class="input mono" style="flex:1;" />
+                    <button type="button" class="btn btn-sm" id="btnPickOutbox">Browse...</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" id="btnCancelPrefs">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Preferences</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
