@@ -45,7 +45,7 @@ jobs:
           ref: ${{ inputs.release_tag || '' }}
 
       - name: Set up Node.js 22 LTS
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: "npm"
@@ -75,7 +75,7 @@ jobs:
           ref: ${{ inputs.release_tag || '' }}
 
       - name: Set up Node.js 22 LTS
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: "npm"
@@ -174,7 +174,7 @@ jobs:
           ref: ${{ inputs.release_tag || '' }}
 
       - name: Set up Node.js 22 LTS
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: "npm"
@@ -223,7 +223,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Node.js 22 LTS
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -244,7 +244,7 @@ jobs:
           cat dist-artifacts/SHA256SUMS.txt
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: W5CDN NTS Traffic Manager ${{ env.RELEASE_TAG }}
