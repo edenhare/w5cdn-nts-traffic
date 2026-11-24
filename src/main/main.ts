@@ -8,6 +8,12 @@ import { loadConfigFile, resolveSuitePaths } from "./suitePaths";
 let mainWindow: BrowserWindow | null = null;
 let trafficDb: TrafficDatabase | null = null;
 
+if (app.isPackaged && !process.env.NTS_TRAFFIC_DATA_DIR) {
+  const initialPaths = resolveSuitePaths(app.getPath("appData"));
+  fs.mkdirSync(initialPaths.appDataDir, { recursive: true });
+  app.setPath("userData", initialPaths.appDataDir);
+}
+
 async function createWindow(): Promise<void> {
   const isSmoke = process.env.NTS_TRAFFIC_SMOKE_TEST === "1";
   const paths = resolveSuitePaths(app.getPath("appData"));

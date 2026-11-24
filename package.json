@@ -53,7 +53,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "menuCategory": "W5CDN",
+      "include": "build/installer.nsh"
     },
     "linux": {
       "target": [

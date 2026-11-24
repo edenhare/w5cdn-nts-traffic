@@ -28,18 +28,29 @@ Part of the **W5CDN Amateur Radio Suite** alongside [`w5cdn-net-logger`](https:/
 
 ## Shared W5CDN Suite Directory Layout
 
-To avoid SQLite write conflicts when running multiple W5CDN desktop apps side-by-side while still sharing plain-text radiograms, outbox files, and optional default credentials:
+All **W5CDN** desktop apps (`Net-Logger`, `NTS`, and `RadioPlanner`) install together under one suite folder and store their user data under one suite root — keeping each app's SQLite database private while sharing plain-text radiograms, outbox files, and optional default credentials:
 
+### Program Install Layout (Windows NSIS Installer)
+```text
+%LOCALAPPDATA%\Programs\W5CDN\   # (or C:\Program Files\W5CDN\ for all users; Start Menu -> W5CDN)
+├── Net-Logger\                  # W5CDN Net Logger
+├── NTS\                         # W5CDN NTS Traffic Manager
+└── RadioPlanner\                # W5CDN RadioPlanner
+```
+
+### User Data Layout
 ```text
 %APPDATA%\W5CDN\                 # Windows (or ~/.config/W5CDN/ on Linux)
 ├── shared\                      # Shared safely across all W5CDN apps
 │   ├── radiograms\              # Plain-text ARRL Radiogram .txt files
 │   ├── outbox\                  # Staged Packet BBS / Winlink drop files
 │   └── config.txt               # Optional shared defaults (OPERATOR_CALL, QRZ_USER/PASS, BPQ_PASS)
-├── net-logger\
+├── Net-Logger\
 │   └── net_logger.db            # Private to W5CDN Net Logger
-└── nts-traffic\
-    └── nts_traffic.db           # Private to W5CDN NTS Traffic Manager
+├── NTS\
+│   └── nts_traffic.db           # Private to W5CDN NTS Traffic Manager
+└── RadioPlanner\
+    └── radio_planner.db         # Private to W5CDN RadioPlanner
 ```
 
 Override the suite root with `W5CDN_SUITE_DIR`, or override individual folders in **Preferences** or via `NTS_TRAFFIC_DATA_DIR` / `RADIOGRAMS_DIR` / `OUTBOX_DIR`.
