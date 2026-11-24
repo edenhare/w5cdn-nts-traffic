@@ -31,7 +31,7 @@
     "electron-builder": "^25.1.8",
     "husky": "^9.1.7",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.5"
+    "vitest": "^5.1.1"
   },
   "build": {
     "appId": "org.w5cdn.nts-traffic",
