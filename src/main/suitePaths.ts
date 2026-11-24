@@ -19,9 +19,22 @@ export function resolveSuitePaths(
     ? path.resolve(env.W5CDN_SUITE_DIR)
     : path.join(path.resolve(osAppDataDir), "W5CDN");
   const sharedDir = path.join(suiteRoot, "shared");
-  const appDataDir = env.NTS_TRAFFIC_DATA_DIR
-    ? path.resolve(env.NTS_TRAFFIC_DATA_DIR)
-    : path.join(suiteRoot, "nts-traffic");
+  const suiteAppDir = path.join(suiteRoot, "NTS");
+  const legacySuiteDir = path.join(suiteRoot, "nts-traffic");
+  const legacyFlatDir = path.join(path.resolve(osAppDataDir), "w5cdn-nts-traffic");
+
+  let appDataDir: string;
+  if (env.NTS_TRAFFIC_DATA_DIR) {
+    appDataDir = path.resolve(env.NTS_TRAFFIC_DATA_DIR);
+  } else if (fs.existsSync(path.join(suiteAppDir, "nts_traffic.db"))) {
+    appDataDir = suiteAppDir;
+  } else if (fs.existsSync(path.join(legacySuiteDir, "nts_traffic.db"))) {
+    appDataDir = legacySuiteDir;
+  } else if (fs.existsSync(path.join(legacyFlatDir, "nts_traffic.db"))) {
+    appDataDir = legacyFlatDir;
+  } else {
+    appDataDir = suiteAppDir;
+  }
 
   const sharedRadiogramsDir = env.RADIOGRAMS_DIR
     ? path.resolve(env.RADIOGRAMS_DIR)

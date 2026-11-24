@@ -14,6 +14,7 @@ coverage.json
 
 # Build & packaging artifacts
 build/
+!build/installer.nsh
 dist/
 release/
 node_modules/

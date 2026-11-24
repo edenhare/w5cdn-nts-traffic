@@ -22,8 +22,8 @@ describe("W5CDN Suite paths, release scripts & Husky hooks", () => {
 
     const paths = resolveSuitePaths(tmp, {});
     expect(paths.suiteRoot).toBe(path.join(tmp, "W5CDN"));
-    expect(paths.appDataDir).toBe(path.join(tmp, "W5CDN", "nts-traffic"));
-    expect(paths.dbPath).toBe(path.join(tmp, "W5CDN", "nts-traffic", "nts_traffic.db"));
+    expect(paths.appDataDir).toBe(path.join(tmp, "W5CDN", "NTS"));
+    expect(paths.dbPath).toBe(path.join(tmp, "W5CDN", "NTS", "nts_traffic.db"));
     expect(paths.sharedRadiogramsDir).toBe(path.join(tmp, "W5CDN", "shared", "radiograms"));
     expect(paths.sharedOutboxDir).toBe(path.join(tmp, "W5CDN", "shared", "outbox"));
 
