@@ -13,7 +13,7 @@ coverage/
 coverage.json
 
 # Build & packaging artifacts
-build/
+build/*
 !build/installer.nsh
 dist/
 release/
