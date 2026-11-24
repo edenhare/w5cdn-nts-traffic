@@ -26,12 +26,12 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/sql.js": "^1.4.9",
-    "@vitest/coverage-v8": "^3.0.5",
+    "@vitest/coverage-v8": "^5.1.1",
     "electron": "^45.4.1",
     "electron-builder": "^26.18.0",
     "husky": "^9.1.7",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.5"
+    "vitest": "^5.1.1"
   },
   "build": {
     "appId": "org.w5cdn.nts-traffic",
